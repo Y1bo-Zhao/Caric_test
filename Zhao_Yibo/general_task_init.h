@@ -376,7 +376,7 @@ public:
     }
     Eigen::Vector3d get_global_in_out(int state) const
     {
-        Eigen::Vector3d result = global_in_out[state];
+        Eigen::Vector3d result = global_in_out[state]; //state=0用负面，state=1用正面
         return result;
     }
     void edit_state(int state_in)
@@ -680,7 +680,7 @@ class gcs_task_assign{
             //------------------------------------------------------------------------
 
             client = nh_ptr_->serviceClient<caric_mission::CreatePPComTopic>("create_ppcom_topic");
-            cmd_pub_ = nh_ptr_->advertise<std_msgs::String>("/task_assign", 10);
+            cmd_pub_ = nh_ptr_->advertise<std_msgs::String>("/task_assign", 10); //gcs节点最后把任务分配信息发送到/task_assign/gcs
             srv.request.source = "gcs";
             srv.request.targets.push_back("all");
             srv.request.topic_name = "/task_assign";
@@ -731,9 +731,10 @@ class gcs_task_assign{
         vector<Boundingbox> box_set_0;
         vector<Boundingbox> box_set_1;
         
-        vector<int> box_index;
-        vector<int> state_vec;
-
+        vector<int> box_index_0;
+        vector<int> box_index_1;
+        vector<int> state_vec_0;
+        vector<int> state_vec_1;
 
         double xmax;
         double ymax;
@@ -750,7 +751,7 @@ class gcs_task_assign{
 
         void bboxCallback(const sensor_msgs::PointCloud::ConstPtr &msg) //一次性函数
         {
-            if(finish_bbox_record||!agent_info_get)
+            if(finish_bbox_record||!agent_info_get) //先完成TimerensureCB
             {
                 // cout<<"now agent get"<<endl;
                 // for(auto& name:namelist)
@@ -882,12 +883,13 @@ class gcs_task_assign{
                         point_vec_1.clear(); 
                     }
                 }
-                //中分后更碎了，并无其他区别
+                //分成了两个box_set
                 finish_bbox_record = true;//第一次完成函数后bbox就标记完了
                 //Team allocate
-                Team_allocate();
+                //Team_allocate();
+                Fast_get_pointcloud();
                 //Use best first to generate the global trajactory
-                Best_first_search();
+                //Best_first_search();
                 //Clip the best path
                 Clip_the_task();
                 //Generate the massage
@@ -902,7 +904,8 @@ class gcs_task_assign{
             return;
         }
 
-        void positionCallback(const std_msgs::String msg)
+        //函数用来init_pos
+        void positionCallback(const std_msgs::String msg) //msg的形式belike：init_pos;origin;position_str
         {
             istringstream str(msg.data);
             string type;
@@ -914,14 +917,14 @@ class gcs_task_assign{
                 string position_str;
                 getline(str,position_str,';');
                 if(!position_pair[origin].update){
-                    update_time=ros::Time::now().toSec();
+                    update_time=ros::Time::now().toSec(); //最近的位置信息更新时间
                     position_pair[origin].position=str2point(position_str);
                     position_pair[origin].update=true;
                 }
             }
         }
 
-        void TimerEnsureCB(const ros::TimerEvent &)
+        void TimerEnsureCB(const ros::TimerEvent &)//
         {   
             if(agent_info_get)
             {
@@ -931,7 +934,7 @@ class gcs_task_assign{
             for(auto& name:namelist)
             {
                 if(position_pair[name].update){
-                    finish_agent_record=true;
+                    finish_agent_record=true;   //至少有一个位置信息更新了就把此标记改为ture
                     break;
                 }
             }
@@ -941,12 +944,13 @@ class gcs_task_assign{
             }
             double time_now=ros::Time::now().toSec();
 
-            if(fabs(time_now-update_time)>10)
+            if(fabs(time_now-update_time)>10) //等十秒，不知为何？
             {
                 agent_info_get=true;
             }
         }
-        void TimerMessageCB(const ros::TimerEvent &){
+
+        void TimerMessageCB(const ros::TimerEvent &){   
             if(finish_massage_generate)
             {
                 std_msgs::String task;
@@ -1067,7 +1071,51 @@ class gcs_task_assign{
     void Fast_get_pointcloud(){
         Eigen::Vector3d start_point_0   //jurong
         Eigen::Vector3d start_point_1   //raffles
-        while(box_index.)
+        start_point_0 = position_pair["/jurong"].position;
+        start_point_1 = position_pair["/raffles"].position;
+        while(box_index_0.size()<box_set_0.size()){
+            int index;
+            int state;
+            double mindis=std::numeric_limits<double>::max();
+            for(int i=0;i<box_set_0.size();i++){
+                if(find(box_index_0.begin(),box_index_0.end(),i)！=box_index_0.end()&&box_index.size()>0){//find作用于容器就是这个用法，!=意思是找到了
+                    continue;
+                }
+                for(int j=0;j<8;j++){  
+                    double dis=(box_set_0[i].getVertices()[j]-start_point_0).norm();
+                    if(dis<mindis){
+                        mindis=dis;
+                        state=j;
+                        index=i;
+                    }
+                }
+            }
+            box_index_0.push_back(index);
+            state_vec_0.push_back(state);
+            start_point_0=box_set_0[box_index_0[0]].getVertices()[state];
+        }
+        while(box_index_1.size()<box_set_1.size()){
+            int index;
+            int state;
+            double mindis=std::numeric_limits<double>::max();
+            for(int i=0;i<box_set_1.size();i++){
+                if(find(box_index_1.begin(),box_index_1.end(),i)！=box_index_1.end()&&box_index.size()>0){//find作用于容器就是这个用法，!=意思是找到了
+                    continue;
+                }
+                for(int j=0;j<8;j++){  
+                    double dis=(box_set_1[i].getVertices()[j]-start_point_1).norm();
+                    if(dis<mindis){
+                        mindis=dis;
+                        state=j;
+                        index=i;
+                    }
+                }
+            }
+            box_index_1.push_back(index);
+            state_vec_1.push_back(state);
+            start_point_1=box_set_1[box_index_1[0]].getVertices()[state];
+        }
+        //按离起始点的距离把盒子们排好序（不需要raffles原地起飞）
 
 
     }
