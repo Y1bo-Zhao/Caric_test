@@ -1,0 +1,16 @@
+<launch>
+    <!-- Launch node for unit_id 'changi' -->
+    <node name="photographer_changi" pkg="caric_testing" type="photographer" output="screen">
+        <param name="unit_id" type="string" value="changi"/>
+    </node>
+
+    <!-- Launch node for unit_id 'sentosa' -->
+    <node name="photographer_sentosa" pkg="caric_testing" type="photographer" output="screen">
+        <param name="unit_id" type="string" value="sentosa"/>
+    </node>
+
+    <!-- Launch node for unit_id 'nanyang' -->
+    <node name="photographer_nanyang" pkg="caric_testing" type="photographer" output="screen">
+        <param name="unit_id" type="string" value="nanyang"/>
+    </node>
+</launch>
